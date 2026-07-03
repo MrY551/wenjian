@@ -1,0 +1,13 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # 允许访问静态文件
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^(.*)$ - [L]
+</IfModule>
+
+# 允许访问 assets 目录
+<Directory "assets">
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+</Directory>

@@ -1,0 +1,369 @@
+<?php
+// 配置Session
+ini_set('session.cookie_httponly', 1);
+ini_set('session.use_only_cookies', 1);
+ini_set('session.cookie_samesite', 'Lax');
+
+// 启动Session
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// 启用错误日志
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../logs/php_errors.log');
+
+// 确保日志目录存在
+$logDir = __DIR__ . '/../logs';
+if (!file_exists($logDir)) {
+    mkdir($logDir, 0755, true);
+}
+
+// 设置响应头
+header('Access-Control-Allow-Origin: *');
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+// 处理预检请求
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
+// 检查用户是否登录（临时禁用，用于测试）
+error_log("files.php - 检查登录状态 - Session ID: " . session_id());
+error_log("files.php - Session数据: " . print_r($_SESSION, true));
+
+// 临时注释掉登录检查，以便测试功能
+// if (!isset($_SESSION['user_id'])) {
+//     error_log("files.php - 用户未登录");
+//     http_response_code(401);
+//     echo json_encode(['error' => '未登录']);
+//     exit;
+// }
+
+// error_log("files.php - 用户已登录: " . $_SESSION['username']);
+
+// 引入数据库配置
+require_once '../config/database.php';
+
+// 获取请求方法和路径
+$method = $_SERVER['REQUEST_METHOD'];
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$pathParts = explode('/', trim($path, '/'));
+
+// 获取数据库连接
+$database = new Database();
+$db = $database->getConnection();
+
+// 根据请求方法处理不同的操作
+switch ($method) {
+    case 'GET':
+        // 获取文件列表或单个文件
+        if (isset($pathParts[2]) && is_numeric($pathParts[2])) {
+            // 获取单个文件
+            getFile($db, $pathParts[2]);
+        } else {
+            // 获取文件列表
+            getFiles($db);
+        }
+        break;
+
+    case 'POST':
+        // 创建新文件
+        createFile($db);
+        break;
+
+    case 'PUT':
+        // 更新文件
+        if (isset($pathParts[2]) && is_numeric($pathParts[2])) {
+            updateFile($db, $pathParts[2]);
+        } else {
+            http_response_code(400);
+            echo json_encode(['error' => '无效的文件ID']);
+        }
+        break;
+
+    case 'DELETE':
+        // 删除文件
+        if (isset($pathParts[2]) && is_numeric($pathParts[2])) {
+            deleteFile($db, $pathParts[2]);
+        } else {
+            http_response_code(400);
+            echo json_encode(['error' => '无效的文件ID']);
+        }
+        break;
+
+    default:
+        http_response_code(405);
+        echo json_encode(['error' => '不允许的请求方法']);
+        break;
+}
+
+// 获取文件列表
+function getFiles($db) {
+    $searchTerm = isset($_GET['search']) ? $_GET['search'] : '';
+    $filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
+    $prefixFilter = isset($_GET['prefix']) ? $_GET['prefix'] : 'all';
+    $yearFilter = isset($_GET['year']) ? $_GET['year'] : 'all';
+
+    // 超级管理员可以查看所有文件，其他用户只能查看自己的文件
+    // 临时禁用权限检查，用于测试
+    // $isSuperAdmin = isset($_SESSION['role']) && $_SESSION['role'] === 'superadmin';
+    $isSuperAdmin = true; // 临时设置为true，允许查看所有文件
+
+    $query = "SELECT * FROM files WHERE 1=1";
+    $params = [];
+
+    // 如果不是超级管理员，只显示当前用户的文件
+    // 临时注释掉权限检查
+    // if (!$isSuperAdmin) {
+    //     $query .= " AND userId = ?";
+    //     $params[] = $_SESSION['user_id'];
+    // }
+
+    // 添加搜索条件
+    if (!empty($searchTerm)) {
+        $query .= " AND (fileNumber LIKE ? OR fileName LIKE ? OR fileContent LIKE ?)";
+        $searchPattern = "%{$searchTerm}%";
+        $params[] = $searchPattern;
+        $params[] = $searchPattern;
+        $params[] = $searchPattern;
+    }
+
+    // 添加筛选条件
+    if ($filter !== 'all') {
+        switch ($filter) {
+            case 'all-approved':
+                $query .= " AND approver01 = '已签批' AND approver02 = '已签批' AND approver03 = '已签批' AND approver04 = '已签批' AND approver05 = '已签批' AND approver06 = '已签批' AND approver07 = '已签批'";
+                break;
+            case 'partial-approved':
+                $query .= " AND (approver01 = '已签批' OR approver02 = '已签批' OR approver03 = '已签批' OR approver04 = '已签批' OR approver05 = '已签批' OR approver06 = '已签批' OR approver07 = '已签批') AND NOT (approver01 = '已签批' AND approver02 = '已签批' AND approver03 = '已签批' AND approver04 = '已签批' AND approver05 = '已签批' AND approver06 = '已签批' AND approver07 = '已签批')";
+                break;
+            case 'none-approved':
+                $query .= " AND approver01 = '未签批' AND approver02 = '未签批' AND approver03 = '未签批' AND approver04 = '未签批' AND approver05 = '未签批' AND approver06 = '未签批' AND approver07 = '未签批'";
+                break;
+            case 'no-instruction':
+                $query .= " AND (leaderInstruction IS NULL OR leaderInstruction = '') AND NOT EXISTS (SELECT 1 FROM instructions WHERE instructions.fileNumber = files.fileNumber)";
+                break;
+        }
+    }
+
+    // 添加前缀筛选条件
+    if ($prefixFilter !== 'all') {
+        $query .= " AND fileNumber LIKE ?";
+        $params[] = $prefixFilter . "%";
+    }
+
+    // 添加年份筛选条件
+    if ($yearFilter !== 'all') {
+        $query .= " AND YEAR(createdAt) = ?";
+        $params[] = $yearFilter;
+    }
+
+    $query .= " ORDER BY createdAt DESC";
+
+    try {
+        $stmt = $db->prepare($query);
+        $stmt->execute($params);
+        $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 获取所有文件的编号
+        $fileNumbers = array_column($files, 'fileNumber');
+
+        // 批量查询所有文件的最新批示
+        $instructions = [];
+        if (!empty($fileNumbers)) {
+            $placeholders = str_repeat('?,', count($fileNumbers) - 1) . '?';
+            $instructionQuery = "SELECT fileNumber, content 
+                             FROM instructions 
+                             WHERE fileNumber IN ($placeholders) 
+                             ORDER BY fileNumber, date DESC";
+            $instructionStmt = $db->prepare($instructionQuery);
+            $instructionStmt->execute($fileNumbers);
+            $instructionResults = $instructionStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // 为每个文件保留最新的批示
+            foreach ($instructionResults as $instruction) {
+                if (!isset($instructions[$instruction['fileNumber']])) {
+                    $instructions[$instruction['fileNumber']] = $instruction['content'];
+                }
+            }
+        }
+
+        // 确保leaderInstruction字段存在且正确编码
+        foreach ($files as &$file) {
+            if (!isset($file['leaderInstruction'])) {
+                $file['leaderInstruction'] = '';
+            }
+
+            // 如果files表中的leaderInstruction为空，则从instructions表中获取最新的批示
+            if (empty($file['leaderInstruction']) && isset($instructions[$file['fileNumber']])) {
+                $file['leaderInstruction'] = $instructions[$file['fileNumber']];
+            }
+
+            // 确保字符串正确编码
+            if (is_string($file['leaderInstruction'])) {
+                $file['leaderInstruction'] = mb_convert_encoding($file['leaderInstruction'], 'UTF-8', 'UTF-8');
+            }
+        }
+
+        http_response_code(200);
+        echo json_encode($files, JSON_UNESCAPED_UNICODE);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['error' => '获取文件列表失败', 'details' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+}
+
+// 获取单个文件
+function getFile($db, $id) {
+    try {
+        $query = "SELECT * FROM files WHERE id = ?";
+        $stmt = $db->prepare($query);
+        $stmt->execute([$id]);
+        $file = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($file) {
+            // 确保leaderInstruction字段存在且正确编码
+            if (!isset($file['leaderInstruction'])) {
+                $file['leaderInstruction'] = '';
+            }
+            // 确保字符串正确编码
+            if (is_string($file['leaderInstruction'])) {
+                $file['leaderInstruction'] = mb_convert_encoding($file['leaderInstruction'], 'UTF-8', 'UTF-8');
+            }
+
+            http_response_code(200);
+            echo json_encode($file, JSON_UNESCAPED_UNICODE);
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+        }
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['error' => '获取文件失败', 'details' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+}
+
+// 创建新文件
+function createFile($db) {
+    $data = json_decode(file_get_contents('php://input'), true);
+
+    // 验证必填字段
+    if (!isset($data['fileNumber']) || !isset($data['fileName']) || !isset($data['fileContent']) || !isset($data['issueDate'])) {
+        http_response_code(400);
+        echo json_encode(['error' => '缺少必填字段']);
+        return;
+    }
+
+    try {
+        $query = "INSERT INTO files (fileNumber, fileName, fileContent, submitter, issueDate, approver01, approver02, approver03, approver04, approver05, approver06, approver07, leaderInstruction)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        $stmt = $db->prepare($query);
+        $result = $stmt->execute([
+            $data['fileNumber'],
+            $data['fileName'],
+            $data['fileContent'],
+            $data['submitter'] ?? null,
+            $data['issueDate'],
+            $data['approver01'] ?? '未签批',
+            $data['approver02'] ?? '未签批',
+            $data['approver03'] ?? '未签批',
+            $data['approver04'] ?? '未签批',
+            $data['approver05'] ?? '未签批',
+            $data['approver06'] ?? '未签批',
+            $data['approver07'] ?? '未签批',
+            $data['leaderInstruction'] ?? null
+        ]);
+
+        if ($result) {
+            $newId = $db->lastInsertId();
+            http_response_code(201);
+            echo json_encode(['id' => $newId, 'message' => '文件创建成功']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => '文件创建失败']);
+        }
+    } catch (PDOException $e) {
+        if ($e->getCode() == 23000) {
+            http_response_code(409);
+            echo json_encode(['error' => '文件编号已存在']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => '文件创建失败', 'details' => $e->getMessage()]);
+        }
+    }
+}
+
+// 更新文件
+function updateFile($db, $id) {
+    $data = json_decode(file_get_contents('php://input'), true);
+
+    try {
+        $query = "UPDATE files
+                  SET fileNumber = ?, fileName = ?, fileContent = ?, submitter = ?, issueDate = ?,
+                      approver01 = ?, approver02 = ?, approver03 = ?, approver04 = ?,
+                      approver05 = ?, approver06 = ?, approver07 = ?, leaderInstruction = ?
+                  WHERE id = ?";
+
+        $stmt = $db->prepare($query);
+        $result = $stmt->execute([
+            $data['fileNumber'],
+            $data['fileName'],
+            $data['fileContent'],
+            $data['submitter'] ?? null,
+            $data['issueDate'],
+            $data['approver01'] ?? '未签批',
+            $data['approver02'] ?? '未签批',
+            $data['approver03'] ?? '未签批',
+            $data['approver04'] ?? '未签批',
+            $data['approver05'] ?? '未签批',
+            $data['approver06'] ?? '未签批',
+            $data['approver07'] ?? '未签批',
+            $data['leaderInstruction'] ?? null,
+            $id
+        ]);
+
+        if ($result) {
+            http_response_code(200);
+            echo json_encode(['message' => '文件更新成功']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => '文件更新失败']);
+        }
+    } catch (PDOException $e) {
+        if ($e->getCode() == 23000) {
+            http_response_code(409);
+            echo json_encode(['error' => '文件编号已存在']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => '文件更新失败', 'details' => $e->getMessage()]);
+        }
+    }
+}
+
+// 删除文件
+function deleteFile($db, $id) {
+    try {
+        $query = "DELETE FROM files WHERE id = ?";
+        $stmt = $db->prepare($query);
+        $result = $stmt->execute([$id]);
+
+        if ($result) {
+            http_response_code(200);
+            echo json_encode(['message' => '文件删除成功']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => '文件删除失败']);
+        }
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['error' => '文件删除失败', 'details' => $e->getMessage()]);
+    }
+}
+?>

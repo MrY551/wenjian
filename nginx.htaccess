@@ -1,0 +1,4 @@
+location /assets/ {
+    alias G:/phpstudy_pro/WWW/wenjian2/assets/;
+    try_files $uri $uri/ =404;
+}
