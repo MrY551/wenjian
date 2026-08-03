@@ -270,6 +270,7 @@ try {
                             <!-- 表格内容将通过JavaScript动态生成 -->
                         </tbody>
                     </table>
+                    <div id="pagination"></div>
                 </div>
             </div>
 

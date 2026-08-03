@@ -19,6 +19,12 @@ async function fetchWithTimeout(url, options = {}, timeout = 10000) {
 // DOM元素缓存
 const domCache = {};
 
+// 分页状态
+let currentPage = 1;
+let currentRequestId = 0;
+const savedSize = parseInt(localStorage.getItem('fileListPageSize'));
+let pageSize = [20, 50, 100].includes(savedSize) ? savedSize : 50;
+
 // 编辑状态：记录正在编辑的文件编号，为空表示新建
 let editingFileNumber = '';
 
@@ -45,6 +51,7 @@ function initDomCache() {
     
     // 表格
     domCache.filesTable = document.getElementById('filesTable').querySelector('tbody');
+    domCache.pagination = document.getElementById('pagination');
     
     // 退出登录
     domCache.logoutBtn = document.getElementById('logoutBtn');
@@ -255,14 +262,33 @@ async function loadFiles() {
         endDate: endDate
     });
     
+    params.append('page', currentPage);
+    params.append('limit', pageSize);
+    params.append('filter', approval);
+    
     try {
+        const thisRequestId = ++currentRequestId;
         const response = await fetchWithTimeout('api/files.php?' + params.toString());
         const result = await response.json();
+        
+        if (thisRequestId !== currentRequestId) return;
+        window.currentPagination = result.pagination || {};
         
         // 兼容分页格式
         const files = result.data || result.files || [];
         
+        const pagination = result.pagination || {};
+        if (pagination.page && pagination.page < currentPage) {
+            currentPage = pagination.page;
+        }
+        if (files.length === 0 && currentPage > 1 && pagination.totalPages > 0) {
+            currentPage = pagination.totalPages;
+            loadFiles();
+            return;
+        }
+        
         renderFilesTable(files);
+        renderPagination(window.currentPagination);
     } catch (error) {
         showNotification('加载文件请求失败: ' + error.message, true);
     }
@@ -305,6 +331,119 @@ function renderFilesTable(files) {
         `;
         
         domCache.filesTable.appendChild(tr);
+    });
+}
+
+// 渲染分页控件
+function renderPagination(pagination) {
+    if (!domCache.pagination) return;
+    
+    const total = pagination.total || 0;
+    const page = pagination.page || 1;
+    const totalPages = pagination.totalPages || 1;
+    
+    domCache.pagination.innerHTML = '';
+    
+    // 总记录数
+    const infoSpan = document.createElement('span');
+    infoSpan.className = 'page-info';
+    infoSpan.innerHTML = '共 <span id="totalRecords">' + total + '</span> 条';
+    domCache.pagination.appendChild(infoSpan);
+    
+    // 导航区
+    const nav = document.createElement('div');
+    nav.className = 'page-nav';
+    
+    const prevBtn = document.createElement('button');
+    prevBtn.id = 'prevPage';
+    prevBtn.className = 'page-btn';
+    prevBtn.textContent = '上一页';
+    prevBtn.disabled = page <= 1;
+    nav.appendChild(prevBtn);
+    
+    const pageNumbers = document.createElement('div');
+    pageNumbers.className = 'page-numbers';
+    
+    // 生成页码按钮（窗口化）
+    const buildPageBtn = (num) => {
+        const btn = document.createElement('button');
+        btn.className = 'page-btn' + (num === page ? ' active' : '');
+        btn.dataset.page = num;
+        btn.textContent = num;
+        pageNumbers.appendChild(btn);
+    };
+    
+    if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) buildPageBtn(i);
+    } else {
+        // 始终显示首页和末页，中间显示当前页±2，用省略号占位
+        const pages = new Set([1, totalPages, page - 2, page - 1, page, page + 1, page + 2]);
+        let prevNum = 0;
+        [...pages].filter(n => n >= 1 && n <= totalPages).sort((a, b) => a - b).forEach(n => {
+            if (n - prevNum > 1) {
+                const ellipsis = document.createElement('span');
+                ellipsis.className = 'page-btn ellipsis';
+                ellipsis.textContent = '...';
+                pageNumbers.appendChild(ellipsis);
+            }
+            buildPageBtn(n);
+            prevNum = n;
+        });
+    }
+    
+    nav.appendChild(pageNumbers);
+    
+    const nextBtn = document.createElement('button');
+    nextBtn.id = 'nextPage';
+    nextBtn.className = 'page-btn';
+    nextBtn.textContent = '下一页';
+    nextBtn.disabled = page >= totalPages;
+    nav.appendChild(nextBtn);
+    
+    domCache.pagination.appendChild(nav);
+    
+    // 每页条数选择器
+    const sizeSelector = document.createElement('div');
+    sizeSelector.className = 'page-size-selector';
+    sizeSelector.innerHTML = '<label>每页条数: <select id="pageSize">' +
+        '<option value="20"' + (pageSize === 20 ? ' selected' : '') + '>20</option>' +
+        '<option value="50"' + (pageSize === 50 ? ' selected' : '') + '>50</option>' +
+        '<option value="100"' + (pageSize === 100 ? ' selected' : '') + '>100</option>' +
+        '</select></label>';
+    domCache.pagination.appendChild(sizeSelector);
+    
+    // 上一页/下一页事件
+    prevBtn.addEventListener('click', function() {
+        if (currentPage > 1) {
+            currentPage = currentPage - 1;
+            loadFiles();
+        }
+    });
+    
+    nextBtn.addEventListener('click', function() {
+        if (currentPage < totalPages) {
+            currentPage = currentPage + 1;
+            loadFiles();
+        }
+    });
+    
+    // 页码按钮事件（事件委托）
+    pageNumbers.addEventListener('click', function(e) {
+        const btn = e.target.closest('.page-btn');
+        if (!btn || btn.classList.contains('ellipsis')) return;
+        const targetPage = parseInt(btn.dataset.page);
+        if (!isNaN(targetPage) && targetPage !== currentPage) {
+            currentPage = targetPage;
+            loadFiles();
+        }
+    });
+    
+    // 每页条数切换事件
+    document.getElementById('pageSize').addEventListener('change', function() {
+        pageSize = parseInt(this.value);
+        currentPage = 1;
+        localStorage.setItem('fileListPageSize', pageSize);
+        loadFiles();
     });
 }
 
@@ -372,6 +511,9 @@ async function deleteFile(fileNumber) {
         
         if (data.success) {
             showNotification('删除成功');
+            if (window.currentPagination && currentPage > window.currentPagination.totalPages) {
+                currentPage = window.currentPagination.totalPages || 1;
+            }
             loadFiles();
         } else {
             showNotification(data.message || '删除失败', true);
@@ -429,16 +571,37 @@ async function saveEditInstruction() {
 
 // 初始化搜索功能
 function initSearch() {
-    domCache.searchButton.addEventListener('click', loadFiles);
+    domCache.searchButton.addEventListener('click', function() {
+        currentPage = 1;
+        loadFiles();
+    });
     domCache.searchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') loadFiles();
+        if (e.key === 'Enter') {
+            currentPage = 1;
+            loadFiles();
+        }
     });
     
-    domCache.approvalFilter.addEventListener('change', loadFiles);
-    domCache.prefixFilter.addEventListener('change', loadFiles);
-    domCache.yearFilter.addEventListener('change', loadFiles);
-    domCache.startDate.addEventListener('change', loadFiles);
-    domCache.endDate.addEventListener('change', loadFiles);
+    domCache.approvalFilter.addEventListener('change', function() {
+        currentPage = 1;
+        loadFiles();
+    });
+    domCache.prefixFilter.addEventListener('change', function() {
+        currentPage = 1;
+        loadFiles();
+    });
+    domCache.yearFilter.addEventListener('change', function() {
+        currentPage = 1;
+        loadFiles();
+    });
+    domCache.startDate.addEventListener('change', function() {
+        currentPage = 1;
+        loadFiles();
+    });
+    domCache.endDate.addEventListener('change', function() {
+        currentPage = 1;
+        loadFiles();
+    });
     
     // 导出功能
     domCache.exportButton.addEventListener('click', async function() {

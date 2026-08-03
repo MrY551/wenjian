@@ -129,7 +129,7 @@ function getFiles($db) {
 
     // 使用单次 LEFT JOIN 查询获取文件和最新批示
     $query = "SELECT f.*, 
-                   i.content as leaderInstruction
+                   i.content as leader_instruction
               FROM files f
               LEFT JOIN (
                   SELECT i1.fileNumber, i1.content
@@ -214,6 +214,10 @@ function getFiles($db) {
 
         // 确保leaderInstruction字段存在
         foreach ($files as &$file) {
+            if (isset($file['leader_instruction'])) {
+                $file['leaderInstruction'] = $file['leader_instruction'];
+                unset($file['leader_instruction']);
+            }
             if (!isset($file['leaderInstruction']) || $file['leaderInstruction'] === null) {
                 $file['leaderInstruction'] = '';
             }
