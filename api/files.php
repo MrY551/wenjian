@@ -122,7 +122,23 @@ function getFiles($db) {
     $yearFilter = isset($_GET['year']) ? $_GET['year'] : 'all';
     $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
     $limit = isset($_GET['limit']) ? max(1, min(100, intval($_GET['limit']))) : 20;
+    $startDate = isset($_GET['startDate']) ? $_GET['startDate'] : '';
+    $endDate = isset($_GET['endDate']) ? $_GET['endDate'] : '';
     $offset = ($page - 1) * $limit;
+
+    // 日期格式校验：非空日期必须为 YYYY-MM-DD 且通过 checkdate 有效性检查
+    $datePattern = '/^\d{4}-\d{2}-\d{2}$/';
+    $isValidDate = function($date) use ($datePattern) {
+        if (!preg_match($datePattern, $date)) return false;
+        $parts = explode('-', $date);
+        return checkdate((int)$parts[1], (int)$parts[2], (int)$parts[0]);
+    };
+    if ((!empty($startDate) && !$isValidDate($startDate)) ||
+        (!empty($endDate) && !$isValidDate($endDate))) {
+        http_response_code(400);
+        echo json_encode(['error' => '日期格式无效，应为 YYYY-MM-DD']);
+        exit;
+    }
 
     // 超级管理员可以查看所有文件，其他用户只能查看自己的文件
     $isSuperAdmin = isset($_SESSION['role']) && $_SESSION['role'] === 'superadmin';
@@ -186,6 +202,16 @@ function getFiles($db) {
     if ($yearFilter !== 'all') {
         $query .= " AND YEAR(f.createdAt) = ?";
         $params[] = $yearFilter;
+    }
+
+    // 添加日期范围筛选
+    if (!empty($startDate)) {
+        $query .= " AND DATE(f.createdAt) >= ?";
+        $params[] = $startDate;
+    }
+    if (!empty($endDate)) {
+        $query .= " AND DATE(f.createdAt) <= ?";
+        $params[] = $endDate;
     }
 
     $query .= " ORDER BY f.fileNumber DESC";
