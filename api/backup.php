@@ -12,7 +12,7 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
@@ -29,7 +29,9 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'superadmin') {
     exit;
 }
 
-$method = $_SERVER['REQUEST_METHOD'];
+require_once __DIR__ . '/csrf.php';
+$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+csrf_verify($method); // 写操作必须带 X-CSRF-Token
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
 require_once '../config/database.php';
@@ -56,50 +58,75 @@ function exportDatabase() {
         $database = new Database();
         $db = $database->getConnection();
 
+
         if (!$db) {
             throw new Exception('数据库连接失败');
         }
 
-        $reflection = new ReflectionClass($database);
-        $hostProp = $reflection->getProperty('host');
-        $hostProp->setAccessible(true);
-        $dbNameProp = $reflection->getProperty('db_name');
-        $dbNameProp->setAccessible(true);
-        $usernameProp = $reflection->getProperty('username');
-        $usernameProp->setAccessible(true);
-        $passwordProp = $reflection->getProperty('password');
-        $passwordProp->setAccessible(true);
+        // 纯 PDO 导出，不依赖外部 mysqldump。
+        // 旧实现用 shell_exec('mysqldump ... 2>&1')，Windows 上 mysqldump 通常不在 PATH，
+        // 命令失败时提示文本会被当作 SQL 内容下发（HTTP 200），看起来像备份成功。
+        $dbName = $db->query('SELECT DATABASE()')->fetchColumn();
+        $tables = $db->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
 
-        $host = $hostProp->getValue($database);
-        $db_name = $dbNameProp->getValue($database);
-        $username = $usernameProp->getValue($database);
-        $password = $passwordProp->getValue($database);
-
-        $filename = 'backup_' . date('Y-m-d_H-i-s') . '.sql';
-        
-        $command = "mysqldump -h {$host} -u {$username} -p{$password} --default-character-set=utf8mb4 --add-locks --routines --triggers {$db_name} 2>&1";
-        
-        $output = shell_exec($command);
-        
-        if ($output === null) {
-            throw new Exception('mysqldump 命令执行失败，请确保 mysqldump 在系统路径中');
+        if (empty($tables)) {
+            throw new Exception('数据库中没有可导出的表');
         }
 
-        $charsetHeader = "-- 备份文件字符集设置\n";
-        $charsetHeader .= "SET NAMES utf8mb4;\n";
-        $charsetHeader .= "SET CHARACTER_SET_CONNECTION=utf8mb4;\n";
-        $charsetHeader .= "SET CHARACTER_SET_CLIENT=utf8mb4;\n";
-        $charsetHeader .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
-        
-        $charsetFooter = "\n\nSET FOREIGN_KEY_CHECKS=1;\n";
-        
-        $fullOutput = $charsetHeader . $output . $charsetFooter;
+        $lines = array();
+        $lines[] = '-- 文件编号登记系统 数据库备份';
+        $lines[] = '-- 数据库: ' . $dbName;
+        $lines[] = '-- 导出时间: ' . date('Y-m-d H:i:s');
+        $lines[] = '-- 表数量: ' . count($tables);
+        $lines[] = '';
+        $lines[] = 'SET NAMES utf8mb4;';
+        $lines[] = 'SET CHARACTER_SET_CONNECTION=utf8mb4;';
+        $lines[] = 'SET CHARACTER_SET_CLIENT=utf8mb4;';
+        $lines[] = 'SET FOREIGN_KEY_CHECKS=0;';
+        $lines[] = '';
 
-        header('Content-Type: application/octet-stream; charset=utf-8');
+        foreach ($tables as $table) {
+            $createRow = $db->query('SHOW CREATE TABLE `' . $table . '`')->fetch(PDO::FETCH_NUM);
+            if (!$createRow || !isset($createRow[1])) {
+                throw new Exception('无法读取表结构: ' . $table);
+            }
+
+            $lines[] = '-- ----------------------------';
+            $lines[] = '-- 表结构: ' . $table;
+            $lines[] = '-- ----------------------------';
+            $lines[] = 'DROP TABLE IF EXISTS `' . $table . '`;';
+            $lines[] = $createRow[1] . ';';
+            $lines[] = '';
+
+            $rows = $db->query('SELECT * FROM `' . $table . '`')->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($rows)) {
+                $columns = array_keys($rows[0]);
+                $columnList = '`' . implode('`, `', $columns) . '`';
+
+                foreach ($rows as $row) {
+                    $values = array();
+                    foreach ($columns as $column) {
+                        $value = $row[$column];
+                        $values[] = ($value === null) ? 'NULL' : $db->quote($value);
+                    }
+                    $lines[] = 'INSERT INTO `' . $table . '` (' . $columnList . ') VALUES (' . implode(', ', $values) . ');';
+                }
+
+                $lines[] = '-- 共 ' . count($rows) . ' 行';
+                $lines[] = '';
+            }
+        }
+
+        $lines[] = 'SET FOREIGN_KEY_CHECKS=1;';
+        $sql = implode("\n", $lines) . "\n";
+
+        $filename = 'backup_' . date('Y-m-d_H-i-s') . '.sql';
+
+        header('Content-Type: application/sql; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Content-Length: ' . strlen($fullOutput));
-        
-        echo $fullOutput;
+        header('Content-Length: ' . strlen($sql));
+
+        echo $sql;
         exit;
 
     } catch (Exception $e) {
@@ -146,6 +173,7 @@ function importDatabase() {
         $database = new Database();
         $db = $database->getConnection();
 
+
         if (!$db) {
             throw new Exception('数据库连接失败');
         }
@@ -154,6 +182,36 @@ function importDatabase() {
         $db->exec("SET CHARACTER_SET_CONNECTION=utf8mb4");
         $db->exec("SET CHARACTER_SET_CLIENT=utf8mb4");
         $db->exec("SET CHARACTER_SET_RESULTS=utf8mb4");
+
+        // 导入前先把现有数据导出到 logs/。备份文件通常带 DROP TABLE，
+        // 直接执行会覆盖现有数据，留一份快照才有回滚余地。
+        $snapshotDir = __DIR__ . '/../logs';
+        if (!is_dir($snapshotDir)) {
+            @mkdir($snapshotDir, 0775, true);
+        }
+        $snapshotFailed = false;
+        try {
+            $snapshot = "-- 导入前自动快照 " . date('Y-m-d H:i:s') . "\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS=0;\n";
+            foreach ($db->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN) as $table) {
+                $create = $db->query("SHOW CREATE TABLE `$table`")->fetch(PDO::FETCH_NUM);
+                $snapshot .= "DROP TABLE IF EXISTS `$table`;\n" . $create[1] . ";\n";
+                $rows = $db->query("SELECT * FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
+                if (!empty($rows)) {
+                    $colList = '`' . implode('`, `', array_keys($rows[0])) . '`';
+                    foreach ($rows as $row) {
+                        $vals = array_map(function ($v) use ($db) {
+                            return $v === null ? 'NULL' : $db->quote($v);
+                        }, array_values($row));
+                        $snapshot .= "INSERT INTO `$table` ($colList) VALUES (" . implode(', ', $vals) . ");\n";
+                    }
+                }
+            }
+            $snapshot .= "SET FOREIGN_KEY_CHECKS=1;\n";
+            file_put_contents($snapshotDir . '/backup-auto-' . date('Ymd-His') . '.sql', $snapshot);
+        } catch (Exception $snapshotError) {
+            $snapshotFailed = true;
+        }
+
         $db->exec("SET FOREIGN_KEY_CHECKS=0");
 
         ensureTableFields($db);

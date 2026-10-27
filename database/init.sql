@@ -1,7 +1,28 @@
 -- 创建数据库
-CREATE DATABASE IF NOT EXISTS file_management DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS wenjian DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-USE file_management;
+USE wenjian;
+
+-- 用户表（files.userId 的外键目标，必须先于 files 建立）
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    prefix VARCHAR(100) NOT NULL UNIQUE COMMENT '编号前缀，例如A01-',
+    role ENUM('user','admin','superadmin') DEFAULT 'user' COMMENT '用户角色',
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 文件前缀表（api/prefixes.php 使用）
+CREATE TABLE IF NOT EXISTS prefixes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    prefix VARCHAR(100) NOT NULL UNIQUE,
+    description VARCHAR(255) DEFAULT NULL,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    -- prefix 本身已 UNIQUE，不再另建普通索引
+    INDEX idx_updatedAt (updatedAt)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 文件表
 CREATE TABLE IF NOT EXISTS files (
@@ -22,8 +43,8 @@ CREATE TABLE IF NOT EXISTS files (
     leaderInstruction TEXT,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_fileNumber (fileNumber),
-    INDEX idx_userId (userId),
+    -- 主列表查询：WHERE userId = ? ORDER BY updatedAt DESC
+    INDEX idx_user_updated (userId, updatedAt),
     INDEX idx_updatedAt (updatedAt),
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

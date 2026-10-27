@@ -1,15 +1,24 @@
 <?php
-session_start();
+ini_set('session.cookie_httponly', 1);
+ini_set('session.use_only_cookies', 1);
+ini_set('session.cookie_samesite', 'Lax');
 
-// 检查是否登录（已禁用）
-// if (!isset($_SESSION['user_id'])) {
-//     header('Location: login.php');
-//     exit;
-// }
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// 检查是否是超级管理员
+require_once __DIR__ . '/api/csrf.php';
+
+// 未登录先跳登录页
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+// 只有超级管理员可以访问
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'superadmin') {
-    die('<div style="padding: 20px; color: red; font-weight: bold;">无权访问此页面</div>');
+    http_response_code(403);
+    die('<div style="padding: 20px; color: #d92d20; font-weight: bold;">无权访问此页面</div>');
 }
 ?>
 <!DOCTYPE html>
@@ -17,308 +26,12 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'superadmin') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233f51b5'/%3E%3Cpath d='M8 6.5h5.5L17 10v7.5H8z' fill='none' stroke='white' stroke-width='1.4' stroke-linejoin='round'/%3E%3Cpath d='M9.6 12.2h5M9.6 14.8h3.4' stroke='white' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E">
     <title>用户管理 - 超级管理员</title>
-    <link rel="stylesheet" href="css/all.min.css">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Microsoft YaHei', Arial, sans-serif;
-            background-color: #f5f5f5;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .header {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header h1 {
-            color: #333;
-            font-size: 24px;
-        }
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.3s;
-        }
-        .btn-primary {
-            background-color: #667eea;
-            color: white;
-        }
-        .btn-primary:hover {
-            background-color: #5568d3;
-        }
-        .btn-danger {
-            background-color: #e74c3c;
-            color: white;
-        }
-        .btn-danger:hover {
-            background-color: #c0392b;
-        }
-        .btn-secondary {
-            background-color: #95a5a6;
-            color: white;
-        }
-        .btn-secondary:hover {
-            background-color: #7f8c8d;
-        }
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 12px;
-        }
-        .user-table {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .table th,
-        .table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-        .table th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-            color: #495057;
-        }
-        .table tbody tr:hover {
-            background-color: #f8f9fa;
-        }
-        .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-        .badge-admin {
-            background-color: #667eea;
-            color: white;
-        }
-        .badge-superadmin {
-            background-color: #9b59b6;
-            color: white;
-        }
-        .badge-user {
-            background-color: #2ecc71;
-            color: white;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1000;
-        }
-        .modal-content {
-            background: white;
-            border-radius: 8px;
-            max-width: 500px;
-            margin: 50px auto;
-            padding: 20px;
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .modal-header h3 {
-            color: #333;
-            font-size: 18px;
-        }
-        .close {
-            font-size: 24px;
-            cursor: pointer;
-            color: #999;
-        }
-        .close:hover {
-            color: #333;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #495057;
-            font-weight: 500;
-        }
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        .form-group input:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .form-hint {
-            font-size: 12px;
-            color: #6c757d;
-            margin-top: 5px;
-        }
-        .backup-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-top: 20px;
-        }
-        .backup-section {
-            background: white;
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .backup-section h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 18px;
-        }
-        .backup-section h3 i {
-            margin-right: 8px;
-            color: #667eea;
-        }
-        .backup-section p {
-            color: #6c757d;
-            margin-bottom: 15px;
-            font-size: 14px;
-        }
-        .backup-section input[type="file"] {
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            width: 100%;
-            margin-bottom: 15px;
-        }
-        .message {
-            padding: 15px;
-            border-radius: 4px;
-            margin-top: 20px;
-        }
-        .message.success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .message.error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 20px;
-            background-color: #2ecc71;
-            color: white;
-            border-radius: 4px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            z-index: 1000;
-            opacity: 0;
-            transform: translateY(-20px);
-            transition: opacity 0.3s, transform 0.3s;
-        }
-        .notification.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        .notification.error {
-            background-color: #e74c3c;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-        .loading::after {
-            content: '...';
-            animation: dots 1.5s steps(5, end) infinite;
-        }
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60% { content: '...'; }
-            80%, 100% { content: ''; }
-        }
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #ddd;
-        }
-        .tab-button {
-            padding: 10px 20px;
-            background: none;
-            border: none;
-            border-bottom: 2px solid transparent;
-            cursor: pointer;
-            font-size: 16px;
-            color: #495057;
-            transition: all 0.3s;
-        }
-        .tab-button:hover {
-            color: #667eea;
-        }
-        .tab-button.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-        }
-        .tab-content {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding: 20px;
-        }
-        .tab-pane {
-            display: none;
-        }
-        .tab-pane.active {
-            display: block;
-        }
-        .sub-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .sub-header h2 {
-            margin: 0;
-            color: #333;
-            font-size: 20px;
-        }
-        .prefix-table {
-            margin-top: 20px;
-        }
-    </style>
+    <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="css/theme.css?v=<?php echo filemtime(__DIR__ . '/css/theme.css'); ?>">
+    <link rel="stylesheet" href="styles.css?v=<?php echo filemtime(__DIR__ . '/styles.css'); ?>">
+    <script src="js/csrf.js?v=<?php echo filemtime(__DIR__ . '/js/csrf.js'); ?>"></script>
 </head>
 <body>
     <div class="container">
@@ -391,21 +104,21 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'superadmin') {
                 </div>
                 <div class="backup-container">
                     <div class="backup-section">
-                        <h3><i class="fas fa-download"></i> 导出备份</h3>
+                        <h3><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> 导出备份</h3>
                         <p>点击按钮下载当前数据库的完整备份文件</p>
                         <button id="exportBtn" class="btn btn-primary">
-                            <i class="fas fa-file-export"></i> 导出数据库
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v7"/><path d="M9 15l3 3 3-3"/></svg> 导出数据库
                         </button>
                     </div>
                     <div class="backup-section">
-                        <h3><i class="fas fa-upload"></i> 导入备份</h3>
+                        <h3><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17V6"/><path d="M8 10l4-4 4 4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> 导入备份</h3>
                         <p>选择 .sql 备份文件导入数据库</p>
                         <form id="importForm">
                             <div class="form-group">
                                 <input type="file" id="backupFile" accept=".sql" required>
                             </div>
                             <button type="submit" class="btn btn-warning">
-                                <i class="fas fa-file-import"></i> 导入数据库
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-7"/><path d="M9 14l3-3 3 3"/></svg> 导入数据库
                             </button>
                         </form>
                     </div>
@@ -961,7 +674,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'superadmin') {
                         });
                     } else {
                         const row = document.createElement('tr');
-                        row.innerHTML = '<td colspan="6" style="text-align:center;">暂无用户</td>';
+                        row.innerHTML = '<td colspan="6" class="table-empty">暂无用户</td>';
                         document.getElementById('usersTableBody').appendChild(row);
                     }
                 })
@@ -999,7 +712,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'superadmin') {
                         });
                     } else {
                         const row = document.createElement('tr');
-                        row.innerHTML = '<td colspan="5" style="text-align:center;">暂无前缀</td>';
+                        row.innerHTML = '<td colspan="5" class="table-empty">暂无前缀</td>';
                         document.getElementById('prefixesTableBody').appendChild(row);
                     }
                 })

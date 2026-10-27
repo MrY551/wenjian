@@ -28,7 +28,7 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 // 处理预检请求
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
@@ -41,7 +41,9 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // 检查是否是超级管理员（添加、删除、更新前缀需要超级管理员权限）
-$method = $_SERVER['REQUEST_METHOD'];
+require_once __DIR__ . '/csrf.php';
+$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+csrf_verify($method); // 写操作必须带 X-CSRF-Token
 
 // 获取请求路径
 $path = '/';
@@ -69,6 +71,12 @@ require_once '../config/database.php';
 
 $database = new Database();
 $db = $database->getConnection();
+
+if (!$db) {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'message' => '数据库连接失败，请检查配置或数据库服务'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // 路由处理
 $action = isset($_GET['action']) ? $_GET['action'] : '';

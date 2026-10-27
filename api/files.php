@@ -28,7 +28,7 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 // 处理预检请求
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
@@ -44,13 +44,21 @@ if (!isset($_SESSION['user_id'])) {
 require_once '../config/database.php';
 
 // 获取请求方法和路径
-$method = $_SERVER['REQUEST_METHOD'];
+require_once __DIR__ . '/csrf.php';
+$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+csrf_verify($method); // 写操作必须带 X-CSRF-Token
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $pathParts = explode('/', trim($path, '/'));
 
 // 获取数据库连接
 $database = new Database();
 $db = $database->getConnection();
+
+if (!$db) {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'message' => '数据库连接失败，请检查配置或数据库服务'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // 根据请求方法处理不同的操作
 switch ($method) {
@@ -115,6 +123,18 @@ switch ($method) {
 }
 
 // 获取文件列表（带分页）
+/**
+ * 文件归属范围。
+ * superadmin 可操作全部文件；其他用户仅限本人创建的文件。
+ * 返回 [SQL 片段, 绑定参数]，片段接在 WHERE 条件之后（以 AND 开头）。
+ */
+function fileOwnerScope() {
+    if (isset($_SESSION['role']) && $_SESSION['role'] === 'superadmin') {
+        return ['', []];
+    }
+    return [' AND userId = ?', [(int) $_SESSION['user_id']]];
+}
+
 function getFiles($db) {
     $searchTerm = isset($_GET['search']) ? $_GET['search'] : '';
     $filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
@@ -268,9 +288,10 @@ function getFiles($db) {
 // 获取单个文件
 function getFile($db, $id) {
     try {
-        $query = "SELECT * FROM files WHERE id = ?";
+        list($scopeSql, $scopeParams) = fileOwnerScope();
+        $query = "SELECT * FROM files WHERE id = ?" . $scopeSql;
         $stmt = $db->prepare($query);
-        $stmt->execute([$id]);
+        $stmt->execute(array_merge([$id], $scopeParams));
         $file = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($file) {
@@ -304,9 +325,10 @@ function getFile($db, $id) {
 // 根据文件编号获取单个文件
 function getFileByNumber($db, $fileNumber) {
     try {
-        $query = "SELECT * FROM files WHERE fileNumber = ?";
+        list($scopeSql, $scopeParams) = fileOwnerScope();
+        $query = "SELECT * FROM files WHERE fileNumber = ?" . $scopeSql;
         $stmt = $db->prepare($query);
-        $stmt->execute([$fileNumber]);
+        $stmt->execute(array_merge([$fileNumber], $scopeParams));
         $file = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($file) {
@@ -383,7 +405,7 @@ function createFile($db) {
         if ($result) {
             $newId = $db->lastInsertId();
             http_response_code(201);
-            echo json_encode(['id' => $newId, 'message' => '文件创建成功']);
+            echo json_encode(['success' => true, 'id' => $newId, 'message' => '文件创建成功'], JSON_UNESCAPED_UNICODE);
         } else {
             http_response_code(500);
             echo json_encode(['error' => '文件创建失败']);
@@ -404,9 +426,10 @@ function updateFile($db, $id) {
     $data = json_decode(file_get_contents('php://input'), true);
 
     try {
-        // 先获取当前文件的文件编号
-        $stmt = $db->prepare("SELECT fileNumber FROM files WHERE id = ?");
-        $stmt->execute([$id]);
+        // 先获取当前文件的文件编号（附带归属校验）
+        list($scopeSql, $scopeParams) = fileOwnerScope();
+        $stmt = $db->prepare("SELECT fileNumber FROM files WHERE id = ?" . $scopeSql);
+        $stmt->execute(array_merge([$id], $scopeParams));
         $currentFile = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$currentFile) {
@@ -472,7 +495,7 @@ function updateFile($db, $id) {
 
         if ($result) {
             http_response_code(200);
-            echo json_encode(['message' => '文件更新成功']);
+            echo json_encode(['success' => true, 'message' => '文件更新成功'], JSON_UNESCAPED_UNICODE);
         } else {
             http_response_code(500);
             echo json_encode(['error' => '文件更新失败']);
@@ -491,13 +514,20 @@ function updateFile($db, $id) {
 // 删除文件
 function deleteFile($db, $id) {
     try {
-        $query = "DELETE FROM files WHERE id = ?";
+        list($scopeSql, $scopeParams) = fileOwnerScope();
+        $query = "DELETE FROM files WHERE id = ?" . $scopeSql;
         $stmt = $db->prepare($query);
-        $result = $stmt->execute([$id]);
+        $result = $stmt->execute(array_merge([$id], $scopeParams));
 
         if ($result) {
-            http_response_code(200);
-            echo json_encode(['message' => '文件删除成功']);
+            if ($stmt->rowCount() > 0) {
+                http_response_code(200);
+                echo json_encode(['success' => true, 'message' => '文件删除成功'], JSON_UNESCAPED_UNICODE);
+            } else {
+                // 不存在或不属于当前用户，统一按不存在处理，避免泄露他人文件编号
+                http_response_code(404);
+                echo json_encode(['error' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+            }
         } else {
             http_response_code(500);
             echo json_encode(['error' => '文件删除失败']);
@@ -511,9 +541,10 @@ function deleteFile($db, $id) {
 // 通过文件编号删除文件
 function deleteFileByNumber($db, $fileNumber) {
     try {
-        $query = "DELETE FROM files WHERE fileNumber = ?";
+        list($scopeSql, $scopeParams) = fileOwnerScope();
+        $query = "DELETE FROM files WHERE fileNumber = ?" . $scopeSql;
         $stmt = $db->prepare($query);
-        $result = $stmt->execute([$fileNumber]);
+        $result = $stmt->execute(array_merge([$fileNumber], $scopeParams));
 
         if ($result) {
             if ($stmt->rowCount() > 0) {
@@ -538,9 +569,10 @@ function updateFileByNumber($db, $fileNumber) {
     $data = json_decode(file_get_contents('php://input'), true);
 
     try {
-        // 先检查文件是否存在
-        $stmt = $db->prepare("SELECT id FROM files WHERE fileNumber = ?");
-        $stmt->execute([$fileNumber]);
+        // 先检查文件是否存在且属于当前用户
+        list($scopeSql, $scopeParams) = fileOwnerScope();
+        $stmt = $db->prepare("SELECT id FROM files WHERE fileNumber = ?" . $scopeSql);
+        $stmt->execute(array_merge([$fileNumber], $scopeParams));
         $file = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$file) {

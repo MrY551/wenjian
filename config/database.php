@@ -2,8 +2,8 @@
 // 数据库配置文件
 class Database {
     private $host = 'localhost:3306';
-    private $db_name = 'wenjain';
-    private $username = 'wenjain';
+    private $db_name = 'wenjian';
+    private $username = 'root';
     private $password = '123456';
     private $charset = 'utf8mb4';
     public $conn;

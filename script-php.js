@@ -207,6 +207,8 @@ async function submitFileForm(formData) {
             domCache.fileNumber.value = '';
             editingFileNumber = ''; // 重置编辑状态
             loadPrefixes();
+            // 列表同步刷新，切到查询页就能看到刚登记的文件
+            loadFiles();
         } else {
             showNotification(data.message || (isEdit ? '更新失败' : '登记失败'), true);
         }
@@ -299,7 +301,7 @@ function renderFilesTable(files) {
     domCache.filesTable.innerHTML = '';
     
     if (files.length === 0) {
-        domCache.filesTable.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无数据</td></tr>';
+        domCache.filesTable.innerHTML = '<tr><td colspan="6" class="table-empty">暂无数据</td></tr>';
         return;
     }
     
@@ -319,12 +321,12 @@ function renderFilesTable(files) {
         const approvalText = approvalStatus.length > 0 ? approvalStatus.join(', ') : '未签批';
         
         tr.innerHTML = `
-            <td>${escapeHtml(file.fileNumber)}</td>
-            <td>${escapeHtml(file.fileName)}</td>
-            <td>${escapeHtml(file.issueDate || '')}</td>
-            <td>${file.leaderInstruction ? '<button class="btn-link" onclick="editInstruction(\'' + escapeHtml(file.fileNumber) + '\')">查看</button>' : '-'}</td>
-            <td>${escapeHtml(approvalText)}</td>
-            <td>
+            <td data-label="文件编号">${escapeHtml(file.fileNumber)}</td>
+            <td data-label="文件名">${escapeHtml(file.fileName)}</td>
+            <td data-label="下发时间">${escapeHtml(file.issueDate || '')}</td>
+            <td data-label="首长批示">${file.leaderInstruction ? '<button class="btn-link" onclick="editInstruction(\'' + escapeHtml(file.fileNumber) + '\')">查看</button>' : '-'}</td>
+            <td data-label="签批情况">${escapeHtml(approvalText)}</td>
+            <td data-label="操作">
                 <button class="btn-link" onclick="editFile('${escapeHtml(file.fileNumber)}')">编辑</button>
                 <button class="btn-link" onclick="deleteFile('${escapeHtml(file.fileNumber)}')">删除</button>
             </td>

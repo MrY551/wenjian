@@ -14,7 +14,6 @@ if (session_status() === PHP_SESSION_NONE) {
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/../logs/php_errors.log');
 
 // 确保日志目录存在
 $logDir = __DIR__ . '/../logs';
@@ -28,27 +27,22 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 // 处理预检请求
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
 
 // 检查用户是否登录
-error_log("admin.php - 检查登录状态 - Session ID: " . session_id());
-error_log("admin.php - Session数据: " . print_r($_SESSION, true));
 
 if (!isset($_SESSION['user_id'])) {
-    error_log("admin.php - 用户未登录");
     http_response_code(401);
     echo json_encode(['error' => '未登录']);
     exit;
 }
 
-error_log("admin.php - 用户已登录: " . $_SESSION['username']);
 
 // 检查是否是超级管理员（只允许superadmin访问）
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'superadmin') {
-    error_log("admin.php - 用户不是超级管理员，无权访问");
     http_response_code(403);
     echo json_encode(['error' => '只有超级管理员可以访问此功能']);
     exit;
@@ -59,8 +53,16 @@ require_once '../config/database.php';
 $database = new Database();
 $db = $database->getConnection();
 
+if (!$db) {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'message' => '数据库连接失败，请检查配置或数据库服务'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // 获取请求方法和路径
-$method = $_SERVER['REQUEST_METHOD'];
+require_once __DIR__ . '/csrf.php';
+$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+csrf_verify($method); // 写操作必须带 X-CSRF-Token
 $path = isset($_SERVER['PATH_INFO']) ? $_SERVER['PATH_INFO'] : '/';
 if ($path === '/' && isset($_SERVER['REQUEST_URI'])) {
     $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -178,10 +180,10 @@ function createUser($db) {
     $role = isset($data['role']) ? $data['role'] : 'user';
 
     // 验证编号前缀格式（支持中文、字母、数字，长度2-10个字符）
-    $pattern = '/^[\x{4e00}-\x{9fa5}A-Za-z0-9]{2,10}$/u';
+    $pattern = '/^[\x{4e00}-\x{9fa5}A-Za-z0-9\-]{2,10}$/u';
     if (!preg_match($pattern, $prefix)) {
         http_response_code(400);
-        echo json_encode(['error' => '编号前缀格式不正确，支持中文、字母、数字，长度2-10个字符']);
+        echo json_encode(['error' => '编号前缀格式不正确，支持中文、字母、数字和横杠，长度2-10个字符']);
         return;
     }
 
@@ -254,10 +256,10 @@ function updateUser($db, $userId) {
 
         if (isset($data['prefix'])) {
     // 验证编号前缀格式（支持中文、字母、数字，长度2-10个字符）
-    $pattern = '/^[\x{4e00}-\x{9fa5}A-Za-z0-9]{2,10}$/u';
+    $pattern = '/^[\x{4e00}-\x{9fa5}A-Za-z0-9\-]{2,10}$/u';
     if (!preg_match($pattern, $prefix)) {
         http_response_code(400);
-        echo json_encode(['error' => '编号前缀格式不正确，支持中文、字母、数字，长度2-10个字符']);
+        echo json_encode(['error' => '编号前缀格式不正确，支持中文、字母、数字和横杠，长度2-10个字符']);
         return;
     }
 

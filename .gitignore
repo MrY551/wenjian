@@ -1,2 +1,33 @@
+# ---- 运行日志与测试产物 ----
+logs/*.log
+logs/*.log.*
+logs/shots/
+logs/*.mjs
+logs/*.py
+logs/*.txt
+logs/*.xlsx
+logs/*.png
+logs/backup-*.sql
+logs/server.*
 
+# ---- 编辑 / 调试产生的备份 ----
+*.bak
+*.bak.*
+*.disabled
+*.bak.2026*
+
+# ---- 编辑器与 AI 工具目录 ----
+.omo/
+.sisyphus/
+.playwright-mcp/
+.idea/
+.vscode/
+
+# ---- 界面设计原稿（不参与运行时） ----
+登录页源码/
+
+# ---- 系统垃圾文件 ----
 nul
+Thumbs.db
+Desktop.ini
+*.tmp

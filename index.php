@@ -10,6 +10,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+require_once __DIR__ . '/api/csrf.php';
+
 // 启用错误日志
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -82,9 +84,12 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233f51b5'/%3E%3Cpath d='M8 6.5h5.5L17 10v7.5H8z' fill='none' stroke='white' stroke-width='1.4' stroke-linejoin='round'/%3E%3Cpath d='M9.6 12.2h5M9.6 14.8h3.4' stroke='white' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E">
     <title>文件编号登记系统</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="css/all.min.css">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="css/theme.css?v=<?php echo filemtime(__DIR__ . '/css/theme.css'); ?>">
+    <link rel="stylesheet" href="styles.css?v=<?php echo filemtime(__DIR__ . '/styles.css'); ?>">
+    <script src="js/csrf.js?v=<?php echo filemtime(__DIR__ . '/js/csrf.js'); ?>"></script>
 </head>
 <body>
     <div class="container">
@@ -118,29 +123,29 @@ try {
                             </select>
                             <input type="text" id="fileNumber" name="fileNumber" placeholder="自动生成" readonly required>
                             <button type="button" id="syncPrefixesBtn" class="btn btn-secondary btn-sm" onclick="syncPrefixes()" title="从已登记文件中同步前缀">
-                                <i class="fas fa-sync-alt"></i> 同步前缀
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v6h6"/><path d="M20 20v-6h-6"/><path d="M20 9A8 8 0 0 0 6.3 5.7L4 8"/><path d="M4 15a8 8 0 0 0 13.7 3.3L20 16"/></svg> 同步前缀
                             </button>
                         </div>
                         <small class="form-hint">文件编号格式：前缀+年份+【编号】（例如：站参2023【001】）</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="fileName">文件名 <span style="color: red;">*</span></label>
+                        <label for="fileName">文件名 <span class="required">*</span></label>
                         <input type="text" id="fileName" name="fileName" required>
                     </div>
 
                     <div class="form-group">
-                        <label for="submitter">呈办人 <span style="color: red;">*</span></label>
+                        <label for="submitter">呈办人 <span class="required">*</span></label>
                         <input type="text" id="submitter" name="submitter" placeholder="请输入呈办人姓名" required>
                     </div>
 
                     <div class="form-group">
-                        <label for="issueDate">下发时间 <span style="color: red;">*</span></label>
+                        <label for="issueDate">下发时间 <span class="required">*</span></label>
                         <input type="date" id="issueDate" name="issueDate" required>
                     </div>
 
                     <div class="form-group">
-                        <label for="fileContent">文件内容 <span style="color: red;">*</span></label>
+                        <label for="fileContent">文件内容 <span class="required">*</span></label>
                         <textarea id="fileContent" name="fileContent" rows="5" required></textarea>
                     </div>
 
@@ -223,34 +228,44 @@ try {
                     <div class="search-form">
                         <input type="text" id="searchInput" placeholder="输入文件编号或文件名...">
                         <button id="searchButton" class="btn btn-primary">搜索</button>
-                        <button id="exportButton" class="btn btn-secondary">导出表格</button>
+                        <button id="exportButton" class="btn btn-secondary">导出 Excel</button>
                     </div>
 
                     <div class="filter-options">
-                        <label for="approvalFilter">签批状态筛选:</label>
-                        <select id="approvalFilter">
-                            <option value="all">全部</option>
-                            <option value="all-approved">全部已签批</option>
-                            <option value="partial-approved">部分签批</option>
-                            <option value="none-approved">全部未签批</option>
-                            <option value="no-instruction">无首长批示</option>
-                        </select>
-                        
-                        <label for="prefixFilter">前缀筛选:</label>
-                        <select id="prefixFilter">
-                            <option value="all">全部前缀</option>
-                        </select>
+                        <div class="filter-item">
+                            <label for="approvalFilter">签批状态</label>
+                            <select id="approvalFilter">
+                                <option value="all">全部</option>
+                                <option value="all-approved">全部已签批</option>
+                                <option value="partial-approved">部分签批</option>
+                                <option value="none-approved">全部未签批</option>
+                                <option value="no-instruction">无首长批示</option>
+                            </select>
+                        </div>
 
-                        <label for="yearFilter">年份筛选:</label>
-                        <select id="yearFilter">
-                            <option value="all">全部年份</option>
-                        </select>
+                        <div class="filter-item">
+                            <label for="prefixFilter">前缀</label>
+                            <select id="prefixFilter">
+                                <option value="all">全部前缀</option>
+                            </select>
+                        </div>
 
-                        <label for="startDate">开始日期:</label>
-                        <input type="date" id="startDate">
+                        <div class="filter-item">
+                            <label for="yearFilter">年份</label>
+                            <select id="yearFilter">
+                                <option value="all">全部年份</option>
+                            </select>
+                        </div>
 
-                        <label for="endDate">结束日期:</label>
-                        <input type="date" id="endDate">
+                        <div class="filter-item">
+                            <label for="startDate">开始日期</label>
+                            <input type="date" id="startDate">
+                        </div>
+
+                        <div class="filter-item">
+                            <label for="endDate">结束日期</label>
+                            <input type="date" id="endDate">
+                        </div>
                     </div>
                 </div>
 
@@ -363,8 +378,6 @@ try {
             </div>
         </div>
     </div>
-
-    <script src="jquery-3.7.1.js"></script>
-    <script src="script-php.js?v=<?php echo time(); ?>"></script>
+    <script src="script-php.js?v=<?php echo filemtime(__DIR__ . '/script-php.js'); ?>"></script>
 </body>
 </html>

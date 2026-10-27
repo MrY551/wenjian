@@ -1,0 +1,116 @@
+/* ==========================================================================
+   文件编号登记系统 · 设计令牌
+   所有页面共用：颜色、圆角、阴影、字体只在这里定义。
+   改主题只改这一个文件的变量。
+   ========================================================================== */
+
+:root {
+    /* 表面 */
+    --c-bg: #f5f6f8;
+    --c-surface: #ffffff;
+    --c-surface-2: #f9fafb;
+    --c-surface-3: #f2f4f7;
+    --c-border: #e4e7ec;
+    --c-border-strong: #d0d5dd;
+
+    /* 文字 */
+    --c-text: #101828;
+    --c-text-2: #475467;
+    --c-text-3: #667085;
+    --c-text-invert: #ffffff;
+
+    /* 强调色（唯一彩色，替代原渐变紫） */
+    --c-accent: #3f51b5;
+    --c-accent-hover: #35469b;
+    --c-accent-soft: #eef0fb;
+    --c-accent-border: #c7cdf0;
+
+    /* 语义色 */
+    --c-danger: #d92d20;
+    --c-danger-hover: #b42318;
+    --c-danger-soft: #fef3f2;
+    --c-danger-border: #fecdca;
+
+    --c-success: #079455;
+    --c-success-soft: #ecfdf3;
+    --c-success-border: #abefc6;
+
+    --c-warning: #b54708;
+    --c-warning-soft: #fffaeb;
+    --c-warning-border: #fedf89;
+
+    /* 形状 */
+    --radius-sm: 6px;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --radius-pill: 999px;
+
+    /* 阴影 */
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+    --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.14);
+
+    /* 排版 */
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+        'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+
+    /* 尺寸 */
+    --control-h: 40px;
+    --control-h-sm: 32px;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--c-text);
+    background-color: var(--c-bg);
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: var(--c-accent);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--c-accent-hover);
+    text-decoration: underline;
+}
+
+::selection {
+    background: var(--c-accent-soft);
+    color: var(--c-accent);
+}
+
+/* 统一滚动条（Chromium / WebKit） */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--c-border-strong);
+    border: 3px solid var(--c-bg);
+    border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--c-text-3);
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}

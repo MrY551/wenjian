@@ -21,7 +21,7 @@ try {
             echo json_encode([
                 'status' => 'ok',
                 'message' => '数据库连接正常',
-                'database' => 'file_management',
+                'database' => $db->query('SELECT DATABASE()')->fetchColumn(),
                 'timestamp' => date('Y-m-d H:i:s')
             ]);
         } else {

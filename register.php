@@ -3,125 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233f51b5'/%3E%3Cpath d='M8 6.5h5.5L17 10v7.5H8z' fill='none' stroke='white' stroke-width='1.4' stroke-linejoin='round'/%3E%3Cpath d='M9.6 12.2h5M9.6 14.8h3.4' stroke='white' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E">
     <title>文件编号登记系统 - 注册</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Microsoft YaHei', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        .register-container {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-            padding: 40px;
-            width: 100%;
-            max-width: 400px;
-        }
-        .register-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .register-header h1 {
-            color: #333;
-            font-size: 24px;
-            margin-bottom: 10px;
-        }
-        .register-header p {
-            color: #666;
-            font-size: 14px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
-        }
-        .form-group input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-        }
-        .form-group input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .form-hint {
-            font-size: 12px;
-            color: #999;
-            margin-top: 5px;
-        }
-        .btn {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        .btn:hover {
-            transform: translateY(-2px);
-        }
-        .error-message {
-            color: #e74c3c;
-            font-size: 14px;
-            margin-top: 10px;
-            text-align: center;
-            display: none;
-        }
-        .success-message {
-            color: #2ecc71;
-            font-size: 14px;
-            margin-top: 10px;
-            text-align: center;
-            display: none;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            margin-top: 10px;
-        }
-        .loading::after {
-            content: '...';
-            animation: dots 1.5s steps(5, end) infinite;
-        }
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60% { content: '...'; }
-            80%, 100% { content: ''; }
-        }
-        .login-link {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 14px;
-        }
-        .login-link a {
-            color: #667eea;
-            text-decoration: none;
-        }
-        .login-link a:hover {
-            text-decoration: underline;
-        }
-    </style>
+    <link rel="stylesheet" href="css/theme.css?v=<?php echo filemtime(__DIR__ . '/css/theme.css'); ?>">
+    <link rel="stylesheet" href="styles.css?v=<?php echo filemtime(__DIR__ . '/styles.css'); ?>">
+    <link rel="stylesheet" href="css/register.css?v=<?php echo filemtime(__DIR__ . '/css/register.css'); ?>">
 </head>
 <body>
     <div class="register-container">
@@ -142,11 +28,7 @@
                 <label for="confirmPassword">确认密码</label>
                 <input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password">
             </div>
-            <div class="form-group">
-                <label for="prefix">编号前缀</label>
-                <input type="text" id="prefix" name="prefix" required placeholder="例如：A01-">
-                <div class="form-hint">格式：2-4位大写字母或数字加横杠，例如：A01-</div>
-            </div>
+            <p class="form-note">编号前缀由系统自动分配（U01-、U02- …），注册完成后即可登记文件。</p>
             <button type="submit" class="btn">注册</button>
             <div class="error-message" id="errorMessage"></div>
             <div class="success-message" id="successMessage"></div>
@@ -180,10 +62,9 @@
                     const username = document.getElementById('username').value.trim();
                     const password = document.getElementById('password').value;
                     const confirmPassword = document.getElementById('confirmPassword').value;
-                    const prefix = document.getElementById('prefix').value.trim();
 
-                    // 验证输入
-                    if (!username || !password || !confirmPassword || !prefix) {
+                    // 验证输入（编号前缀已改为系统自动分配，不再校验）
+                    if (!username || !password || !confirmPassword) {
                         showError('请填写所有字段');
                         return;
                     }
@@ -211,15 +92,15 @@
                         },
                         body: JSON.stringify({
                             username: username,
-                            password: password,
-                            prefix: prefix
+                            password: password
                         })
                     })
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
                             const successMessage = document.getElementById('successMessage');
-                            successMessage.textContent = '注册成功！正在跳转到登录页面...';
+                            successMessage.textContent = '注册成功！编号前缀已自动分配为 ' +
+                                (data.prefix || '—') + '，正在跳转到登录页面...';
                             successMessage.style.display = 'block';
                             setTimeout(function() {
                                 window.location.href = 'login.php';
