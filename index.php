@@ -104,7 +104,6 @@ try {
         <div class="tabs">
             <button class="tab-button active" data-tab="register">登记文件</button>
             <button class="tab-button" data-tab="search">查询文件</button>
-            <button class="tab-button" data-tab="leader-instructions">首长批示</button>
             <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'superadmin'): ?>
             <button class="tab-button" onclick="window.location.href='admin.php'">用户管理</button>
             <?php endif; ?>
@@ -150,7 +149,7 @@ try {
                     </div>
 
                     <div class="form-group">
-                        <label for="leaderInstruction">首长批示</label>
+                        <label for="leaderInstruction">领导批示</label>
                         <textarea id="leaderInstruction" name="leaderInstruction" rows="3"></textarea>
                     </div>
 
@@ -239,7 +238,7 @@ try {
                                 <option value="all-approved">全部已签批</option>
                                 <option value="partial-approved">部分签批</option>
                                 <option value="none-approved">全部未签批</option>
-                                <option value="no-instruction">无首长批示</option>
+                                <option value="no-instruction">无领导批示</option>
                             </select>
                         </div>
 
@@ -276,7 +275,7 @@ try {
                                 <th>文件编号</th>
                                 <th>文件名</th>
                                 <th>下发时间</th>
-                                <th>首长批示</th>
+                                <th>领导批示</th>
                                 <th>签批情况</th>
                                 <th>操作</th>
                             </tr>
@@ -289,11 +288,11 @@ try {
                 </div>
             </div>
 
-            <!-- 首长批示编辑模态框 -->
+            <!-- 领导批示编辑模态框 -->
             <div id="editInstructionModal" class="modal">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h3>编辑首长批示</h3>
+                        <h3>编辑领导批示</h3>
                         <span class="close">&times;</span>
                     </div>
                     <div class="modal-body">
@@ -303,52 +302,12 @@ try {
                             <input type="text" id="editInstructionFileNumber" readonly>
                         </div>
                         <div class="form-group">
-                            <label for="editInstructionContent">首长批示内容</label>
-                            <textarea id="editInstructionContent" rows="5" placeholder="输入首长批示内容"></textarea>
+                            <label for="editInstructionContent">领导批示内容</label>
+                            <textarea id="editInstructionContent" rows="5" placeholder="输入领导批示内容"></textarea>
                         </div>
                         <div class="form-actions">
                             <button id="saveEditInstructionButton" class="btn btn-primary">保存批示</button>
                             <button id="cancelEditInstructionButton" class="btn btn-secondary">取消</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="leader-instructions" class="tab-pane">
-                <h2>首长批示</h2>
-                <div class="instruction-container">
-                    <div class="instruction-form">
-                        <div class="form-group">
-                            <label for="instructionFileNumber">文件编号</label>
-                            <input type="text" id="instructionFileNumber" placeholder="选择或输入文件编号">
-                            <button id="selectFileButton" class="btn btn-secondary">选择文件</button>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="leaderName">首长姓名</label>
-                            <input type="text" id="leaderName" placeholder="输入首长姓名">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="instructionContent">批示内容</label>
-                            <textarea id="instructionContent" rows="5" placeholder="输入批示内容"></textarea>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="instructionDate">批示日期</label>
-                            <input type="date" id="instructionDate">
-                        </div>
-
-                        <div class="form-actions">
-                            <button id="saveInstructionButton" class="btn btn-primary">保存批示</button>
-                            <button id="clearInstructionForm" class="btn btn-secondary">清除</button>
-                        </div>
-                    </div>
-
-                    <div class="instruction-history">
-                        <h3>批示历史记录</h3>
-                        <div class="instruction-list">
-                            <!-- 批示历史将通过JavaScript动态生成 -->
                         </div>
                     </div>
                 </div>
@@ -360,24 +319,6 @@ try {
         </footer>
     </div>
 
-    <!-- 文件选择模态框 -->
-    <div id="fileSelectionModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>选择文件</h3>
-                <span class="close">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="search-form">
-                    <input type="text" id="modalSearchInput" placeholder="输入文件编号或文件名...">
-                    <button id="modalSearchButton" class="btn btn-primary">搜索</button>
-                </div>
-                <div class="file-list">
-                    <!-- 文件列表将通过JavaScript动态生成 -->
-                </div>
-            </div>
-        </div>
-    </div>
     <script src="script-php.js?v=<?php echo filemtime(__DIR__ . '/script-php.js'); ?>"></script>
 </body>
 </html>

@@ -56,18 +56,9 @@ function initDomCache() {
     // 退出登录
     domCache.logoutBtn = document.getElementById('logoutBtn');
     
-    // 批示相关
-    domCache.saveInstructionButton = document.getElementById('saveInstructionButton');
-    domCache.clearInstructionForm = document.getElementById('clearInstructionForm');
-    domCache.instructionList = document.querySelector('.instruction-list');
     
     // 模态框
     domCache.editInstructionModal = document.getElementById('editInstructionModal');
-    domCache.fileSelectionModal = document.getElementById('fileSelectionModal');
-    domCache.selectFileButton = document.getElementById('selectFileButton');
-    domCache.modalSearchInput = document.getElementById('modalSearchInput');
-    domCache.modalSearchButton = document.getElementById('modalSearchButton');
-    domCache.fileList = document.querySelector('.file-list');
 }
 
 // 显示通知消息
@@ -102,8 +93,6 @@ function initTabs() {
             
             if (tabId === 'search') {
                 loadFiles();
-            } else if (tabId === 'leader-instructions') {
-                loadInstructions();
             }
         });
     });
@@ -324,7 +313,7 @@ function renderFilesTable(files) {
             <td data-label="文件编号">${escapeHtml(file.fileNumber)}</td>
             <td data-label="文件名">${escapeHtml(file.fileName)}</td>
             <td data-label="下发时间">${escapeHtml(file.issueDate || '')}</td>
-            <td data-label="首长批示">${file.leaderInstruction ? '<button class="btn-link" onclick="editInstruction(\'' + escapeHtml(file.fileNumber) + '\')">查看</button>' : '-'}</td>
+            <td data-label="领导批示">${'<button class="btn-link" onclick="editInstruction(\'' + escapeHtml(file.fileNumber) + '\')">' + (file.leaderInstruction ? '查看' : '填写') + '</button>'}</td>
             <td data-label="签批情况">${escapeHtml(approvalText)}</td>
             <td data-label="操作">
                 <button class="btn-link" onclick="editFile('${escapeHtml(file.fileNumber)}')">编辑</button>
@@ -627,148 +616,6 @@ function initSearch() {
     });
 }
 
-// 加载批示历史
-async function loadInstructions() {
-    try {
-        const response = await fetchWithTimeout('api/instructions.php?action=list');
-        const data = await response.json();
-        
-        if (data.success) {
-            renderInstructions(data.instructions);
-        } else {
-            showNotification('加载批示失败: ' + data.message, true);
-        }
-    } catch (error) {
-        showNotification('加载批示请求失败: ' + error.message, true);
-    }
-}
-
-// 渲染批示列表
-function renderInstructions(instructions) {
-    domCache.instructionList.innerHTML = '';
-    
-    if (instructions.length === 0) {
-        domCache.instructionList.innerHTML = '<p style="text-align: center; color: #999;">暂无批示记录</p>';
-        return;
-    }
-    
-    instructions.forEach(inst => {
-        const div = document.createElement('div');
-        div.className = 'instruction-item';
-        div.innerHTML = `
-            <div class="instruction-header">
-                <strong>${escapeHtml(inst.fileNumber)}</strong> - ${escapeHtml(inst.leaderName)}
-                <span class="instruction-date">${escapeHtml(inst.date)}</span>
-            </div>
-            <div class="instruction-content">${escapeHtml(inst.content)}</div>
-        `;
-        domCache.instructionList.appendChild(div);
-    });
-}
-
-// 保存批示
-async function saveInstruction() {
-    const fileNumber = document.getElementById('instructionFileNumber').value;
-    const leaderName = document.getElementById('leaderName').value;
-    const content = document.getElementById('instructionContent').value;
-    const date = document.getElementById('instructionDate').value;
-    
-    if (!fileNumber || !leaderName || !content || !date) {
-        showNotification('请填写完整信息', true);
-        return;
-    }
-    
-    try {
-        const response = await fetchWithTimeout('api/instructions.php?action=create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fileNumber: fileNumber,
-                leaderName: leaderName,
-                content: content,
-                date: date
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showNotification('保存成功');
-            document.getElementById('instructionFileNumber').value = '';
-            document.getElementById('leaderName').value = '';
-            document.getElementById('instructionContent').value = '';
-            document.getElementById('instructionDate').value = '';
-            loadInstructions();
-            loadFiles();
-        } else {
-            showNotification(data.message || '保存失败', true);
-        }
-    } catch (error) {
-        showNotification('保存请求失败: ' + error.message, true);
-    }
-}
-
-// 初始化批示功能
-function initInstructions() {
-    domCache.saveInstructionButton.addEventListener('click', saveInstruction);
-    domCache.clearInstructionForm.addEventListener('click', function() {
-        document.getElementById('instructionFileNumber').value = '';
-        document.getElementById('leaderName').value = '';
-        document.getElementById('instructionContent').value = '';
-        document.getElementById('instructionDate').value = '';
-    });
-    
-    // 打开文件选择模态框
-    domCache.selectFileButton.addEventListener('click', function() {
-        domCache.fileSelectionModal.style.display = 'block';
-        loadModalFiles();
-    });
-    
-    // 模态框搜索
-    domCache.modalSearchButton.addEventListener('click', loadModalFiles);
-    domCache.modalSearchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') loadModalFiles();
-    });
-}
-
-// 加载模态框文件列表
-async function loadModalFiles() {
-    const search = domCache.modalSearchInput.value;
-    
-    try {
-        const response = await fetchWithTimeout('api/files.php?action=list&search=' + encodeURIComponent(search));
-        const result = await response.json();
-        
-        // 兼容分页格式
-        const files = result.data || result.files || [];
-        renderModalFileList(files);
-    } catch (error) {
-        showNotification('加载文件请求失败: ' + error.message, true);
-    }
-}
-
-// 渲染模态框文件列表
-function renderModalFileList(files) {
-    domCache.fileList.innerHTML = '';
-    
-    if (files.length === 0) {
-        domCache.fileList.innerHTML = '<p style="text-align: center; color: #999;">暂无文件</p>';
-        return;
-    }
-    
-    files.forEach(file => {
-        const div = document.createElement('div');
-        div.className = 'file-item';
-        div.innerHTML = `
-            <strong>${escapeHtml(file.fileNumber)}</strong> - ${escapeHtml(file.fileName)}
-        `;
-        div.addEventListener('click', function() {
-            document.getElementById('instructionFileNumber').value = file.fileNumber;
-            domCache.fileSelectionModal.style.display = 'none';
-        });
-        domCache.fileList.appendChild(div);
-    });
-}
 
 // 初始化模态框
 function initModals() {
@@ -835,7 +682,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initFileForm();
     initSearch();
     initYearFilter();
-    initInstructions();
     initModals();
     initLogout();
 });

@@ -397,6 +397,12 @@ function actionCreateInstruction($db) {
 }
 
 /** 更新某文件最新一条批示的内容 */
+/**
+ * 保存批示：有则更新，无则新建（upsert）。
+ *
+ * 去掉独立的批示页面后，查询页的编辑弹窗成了唯一入口，
+ * 它既要能改已有的批示，也要能给还没有批示的文件补一条。
+ */
 function actionUpdateInstruction($db) {
     $data = json_decode(file_get_contents('php://input'), true);
     if (!is_array($data) || !isset($data['fileNumber']) || $data['fileNumber'] === '') {
@@ -412,6 +418,12 @@ function actionUpdateInstruction($db) {
         return;
     }
 
+    if (!fileBelongsToCurrentUser($db, $data['fileNumber'])) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
     try {
         // 先定位最新一条：MySQL 不允许 UPDATE 时对同表做子查询（归属校验加在 files 子查询里）
         list($scopeSql, $scopeParams) = instructionScopeClause();
@@ -419,19 +431,34 @@ function actionUpdateInstruction($db) {
         $find->execute(array_merge([$data['fileNumber']], $scopeParams));
         $row = $find->fetch(PDO::FETCH_ASSOC);
 
-        if (!$row) {
-            http_response_code(404);
-            echo json_encode(['success' => false, 'message' => '该文件没有可编辑的批示'], JSON_UNESCAPED_UNICODE);
-            return;
+        if ($row) {
+            $stmt = $db->prepare("UPDATE instructions SET content = ? WHERE id = ?");
+            $stmt->execute([$content, $row['id']]);
+            $message = '批示更新成功';
+        } else {
+            // 还没有批示记录：用当前登录人作为批示人，日期取今天
+            $leaderName = isset($_SESSION['username']) && $_SESSION['username'] !== ''
+                ? $_SESSION['username']
+                : '未具名';
+            $date = isset($data['date']) && $data['date'] !== '' ? $data['date'] : date('Y-m-d');
+
+            $stmt = $db->prepare("INSERT INTO instructions (fileNumber, leaderName, content, date) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$data['fileNumber'], $leaderName, $content, $date]);
+            $message = '批示保存成功';
         }
 
-        $stmt = $db->prepare("UPDATE instructions SET content = ? WHERE id = ?");
-        $stmt->execute([$content, $row['id']]);
+        // files 表里的冗余字段同步一份，兼容只读 files 的旧查询路径
+        try {
+            $sync = $db->prepare("UPDATE files SET leaderInstruction = ? WHERE fileNumber = ?");
+            $sync->execute([$content, $data['fileNumber']]);
+        } catch (PDOException $syncError) {
+            // 同步失败不影响主流程
+        }
 
-        echo json_encode(['success' => true, 'message' => '批示更新成功'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => true, 'message' => $message], JSON_UNESCAPED_UNICODE);
     } catch (PDOException $e) {
         http_response_code(500);
-        echo json_encode(['success' => false, 'message' => '批示更新失败'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => false, 'message' => '批示保存失败'], JSON_UNESCAPED_UNICODE);
     }
 }
 

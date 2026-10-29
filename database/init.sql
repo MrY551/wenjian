@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS files (
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 首长批示表
+-- 领导批示表
 CREATE TABLE IF NOT EXISTS instructions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     fileNumber VARCHAR(100) NOT NULL,

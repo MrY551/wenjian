@@ -12,23 +12,23 @@ if (PHP_SAPI !== 'cli') {
         exit('403 需要登录');
     }
 }
-// 检查和修复首长批示数据的脚本
+// 检查和修复领导批示数据的脚本
 require_once __DIR__ . '/../config/database.php';
 
 $database = new Database();
 $db = $database->getConnection();
 
-echo "<h2>检查文件表中的首长批示数据</h2>";
+echo "<h2>检查文件表中的领导批示数据</h2>";
 
 try {
-    // 查询所有文件及其首长批示
+    // 查询所有文件及其领导批示
     $query = "SELECT id, fileNumber, fileName, leaderInstruction FROM files";
     $stmt = $db->prepare($query);
     $stmt->execute();
     $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo "<table border='1' style='border-collapse: collapse; width: 100%;'>";
-    echo "<tr><th>ID</th><th>文件编号</th><th>文件名</th><th>首长批示</th></tr>";
+    echo "<tr><th>ID</th><th>文件编号</th><th>文件名</th><th>领导批示</th></tr>";
 
     foreach ($files as $file) {
         echo "<tr>";
@@ -58,7 +58,7 @@ try {
         $testFiles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         echo "<table border='1' style='border-collapse: collapse; width: 100%;'>";
-        echo "<tr><th>ID</th><th>文件编号</th><th>文件名</th><th>首长批示</th></tr>";
+        echo "<tr><th>ID</th><th>文件编号</th><th>文件名</th><th>领导批示</th></tr>";
 
         foreach ($testFiles as $file) {
             echo "<tr>";
@@ -94,7 +94,7 @@ try {
 
     if (count($instructions) > 0) {
         echo "<table border='1' style='border-collapse: collapse; width: 100%;'>";
-        echo "<tr><th>ID</th><th>文件编号</th><th>首长姓名</th><th>批示内容</th><th>批示日期</th></tr>";
+        echo "<tr><th>ID</th><th>文件编号</th><th>领导姓名</th><th>批示内容</th><th>批示日期</th></tr>";
 
         foreach ($instructions as $instruction) {
             echo "<tr>";

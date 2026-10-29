@@ -608,113 +608,12 @@ table .btn {
     border-color: var(--c-success-border);
 }
 
-.instruction-text {
-    display: block;
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--c-text-3);
-}
 
 .table-cell-content {
     max-width: 300px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-/* ------------------------------ 批示区 ------------------------------ */
-
-.instruction-container {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 20px;
-    align-items: stretch;
-}
-
-.instruction-form,
-.instruction-history {
-    padding: 20px;
-    background: var(--c-surface-2);
-    border: 1px solid var(--c-border);
-    border-radius: var(--radius);
-    box-shadow: none;
-}
-
-.instruction-history {
-    display: flex;
-    flex-direction: column;
-}
-
-/* 批示表单里"选择文件"按钮与输入框的间距 */
-.instruction-form .form-group .btn {
-    margin-top: 8px;
-}
-
-.instruction-history h3 {
-    margin: 0 0 14px;
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--c-text);
-}
-
-.instruction-list {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    gap: 10px;
-    max-height: 520px;
-    overflow-y: auto;
-}
-
-.instruction-item {
-    padding: 12px 14px;
-    margin-bottom: 0;
-    background: var(--c-surface);
-    border: 1px solid var(--c-border);
-    border-left: 3px solid var(--c-accent);
-    border-radius: var(--radius-sm);
-    box-shadow: none;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.instruction-item:hover {
-    border-color: var(--c-accent-border);
-    border-left-color: var(--c-accent);
-    box-shadow: var(--shadow-sm);
-    transform: none;
-}
-
-.instruction-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 6px;
-    font-size: 0.875rem;
-    color: var(--c-text-2);
-}
-
-.instruction-header strong {
-    color: var(--c-text);
-    font-weight: 600;
-}
-
-.instruction-content {
-    font-size: 0.875rem;
-    color: var(--c-text-2);
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-
-.instruction-date {
-    margin-left: auto;
-    font-size: 0.75rem;
-    font-style: normal;
-    color: var(--c-text-3);
-    text-align: right;
-    font-variant-numeric: tabular-nums;
 }
 
 /* ------------------------------ 弹窗 ------------------------------ */
@@ -797,39 +696,6 @@ table .btn {
 
 .modal-body .form-group:last-child {
     margin-bottom: 0;
-}
-
-/* 弹窗内的文件选择列表 */
-.file-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    max-height: 320px;
-    overflow-y: auto;
-    margin-top: 12px;
-}
-
-.file-item {
-    padding: 10px 12px;
-    font-size: 0.875rem;
-    color: var(--c-text-2);
-    background: var(--c-surface);
-    border: 1px solid var(--c-border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.file-item:hover {
-    background: var(--c-accent-soft);
-    border-color: var(--c-accent-border);
-}
-
-.file-item.selected {
-    color: var(--c-accent);
-    background: var(--c-accent-soft);
-    border-color: var(--c-accent);
-    border-left-width: 1px;
 }
 
 /* ------------------------------ 通知 ------------------------------ */
@@ -1045,12 +911,6 @@ footer p {
 }
 
 /* ------------------------------ 响应式 ------------------------------ */
-
-@media (max-width: 900px) {
-    .instruction-container {
-        grid-template-columns: 1fr;
-    }
-}
 
 @media (max-width: 768px) {
     .container {
